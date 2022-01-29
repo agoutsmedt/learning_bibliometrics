@@ -313,8 +313,8 @@ write_excel_csv2(select(edges, Source, Target, weight), here(scopus_path,
 #'
 #' Anystyle has a online version where you can put the text for which you want
 #' to identify references. However, we will use the command line in order
-#' to identify more references than what the online website allow (10 000 while
-#' we have `r nrow(references_extract)` raw references. 
+#' to identify more references than what the online website allow (10000 while
+#' we have more than 100000 raw references). 
 #' 
 #' Anystyle could be installed as a RubyGem. You thus need to install Ruby
 #' ([here](https://rubyinstaller.org/downloads/) for Windows) and then install
