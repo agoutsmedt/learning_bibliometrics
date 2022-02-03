@@ -33,23 +33,14 @@ package_list <- c(
   "tidyverse",
   "bib2df", # for cleaning .bib data
   "janitor", # useful functions for cleaning imported data
-  "rscopus"
+  "rscopus", # using Scopus API
+  "biblionetwork" # creating edges
 )
 for (p in package_list) {
   if (p %in% installed.packages() == FALSE) {
     install.packages(p, dependencies = TRUE)
   }
   library(p, character.only = TRUE)
-}
-
-github_list <- c(
-  "agoutsmedt/biblionetwork" # creating edges
-)
-for (p in github_list) {
-  if (gsub(".*/", "", p) %in% installed.packages() == FALSE) {
-    devtools::install_github(p)
-  }
-  library(gsub(".*/", "", p), character.only = TRUE)
 }
 
 #' ## Paths
@@ -65,8 +56,8 @@ scopus_path <- here(data_path, "scopus")
 scopus_search_1 <- read_csv(here(scopus_path, "scopus_search_1998-2013.csv"))
 scopus_search_2 <- read_csv(here(scopus_path, "scopus_search_2014-2021.csv"))
 scopus_search <- rbind(scopus_search_1, scopus_search_2) %>% 
-  mutate(Citing_ID = paste0("A", 1:n())) # We create a unique ID for each doc of our corpus
-
+  mutate(citing_id = paste0("A", 1:n())) %>% # We create a unique ID for each doc of our corpus
+  clean_names()
 #' There are several things to clean:
 #' 
 #' - several `Authors` per document. For some operation, better to have an association between 
@@ -76,7 +67,7 @@ scopus_search <- rbind(scopus_search_1, scopus_search_2) %>%
 #' you to connect authors with their affiliations, but here again you need to separate in 
 #' as many lines as authors (and as `Affiliations`, considering that one author can have
 #' many affiliations);
-#' - `References`;
+#' - `references`;
 #' - Possibility to separate `Author Keywords` and `Index Keywords` if you want to use it.
 #' 
 #' Depending on what we want to study, there is several separate data.frame to create:
@@ -94,12 +85,32 @@ scopus_search <- rbind(scopus_search_1, scopus_search_2) %>%
 #' we will use to build the edges of our network.
 #' - Tables with `Author Keywords` and `Index Keywords`.
 #' 
+#' ## Extracting affilitions and corresponding authors
+#' 
+#' We have two column for affiliations:
+#' - one column `Affiliations` with affiliations alone
+#' - one column with both authors and affiliations.
+#' 
+#' For a more secure cleaning, we opt for the second column, as it allow us to associate
+#' the author with his/her own affiliation as described in the column `authors_with_affiliation`.
+
+scopus_affiliations <- scopus_search %>% 
+  select(citing_id, authors, affiliations, authors_with_affiliations) %>% 
+  separate_rows(authors, sep = ", ") %>% 
+  separate_rows(contains("with"), sep = "; ") %>% 
+  mutate(authors_from_affiliation = str_extract(authors_with_affiliations, 
+                                                "^(.+?)\\.(?=,)"),
+         authors_from_affiliation = str_remove(authors_from_affiliation, ","),
+         affiliations = str_remove(authors_with_affiliations, "^(.+?)\\., "),
+         country = str_remove(affiliations, ".*, ")) %>% # Country is after the last comma
+  filter(authors == authors_from_affiliation) %>% 
+  select(citing_id, authors, affiliations, country)
 
 #' ## Extracting and cleaning references
 references_extract <- scopus_search %>% 
-  filter(! is.na(References)) %>% 
-  select(Citing_ID, References) %>% 
-  separate_rows(References, sep = "; ") %>% 
+  filter(! is.na(references)) %>% 
+  select(citing_id, references) %>% 
+  separate_rows(references, sep = "; ") %>% 
   mutate(id_ref = 1:n()) %>% 
   as_tibble
 
@@ -111,10 +122,10 @@ extract_pages <- "(?<= (p)?p\\. )([A-Z])?\\d+(-([A-Z])?\\d+)?"
 extract_volume_and_number <- "(?<=( |^)?)\\d+ \\(\\d+(-\\d+)?\\)"
 
 cleaning_references <- references_extract %>% 
-  mutate(authors = str_extract(References, paste0(extract_authors_regex, "(?=, )")),
-         remaining_ref = str_remove(References, paste0(extract_authors_regex, ", ")), # cleaning from authors
+  mutate(authors = str_extract(references, paste0(extract_authors_regex, "(?=, )")),
+         remaining_ref = str_remove(references, paste0(extract_authors_regex, ", ")), # cleaning from authors
          is_article = ! str_detect(remaining_ref, "^\\([:digit:]{4}"), 
-         year = str_extract(References, extract_year_brackets) %>% as.integer)
+         year = str_extract(references, extract_year_brackets) %>% as.integer)
 
 #' To easy the cleaning we separate documents depending on the position of the year of 
 #' publication. We use the variable `is_article` to determinate where the year is
@@ -143,7 +154,7 @@ cleaning_articles <- cleaning_references %>%
          journal = ifelse(str_detect(journal, "(W|w)orking (P|p)?aper"), "Working Paper", journal))
 
 cleaned_articles <- cleaning_articles %>% 
-  select(Citing_ID, id_ref, authors, year, title, journal, volume, issue, pages, first_page, book_title, publisher, References)
+  select(citing_id, id_ref, authors, year, title, journal, volume, issue, pages, first_page, book_title, publisher, references)
 
 #' We do the same now with the remaining references (there are less numerous) which
 #' are less easy to clean, due to the fact that the title is not separate from the
@@ -170,7 +181,7 @@ cleaning_non_articles <- cleaning_references %>%
          book_title = NA) # to be symetric with "cleaned_articles"
 
 cleaned_non_articles <- cleaning_non_articles %>% 
-  select(Citing_ID, id_ref, authors, year, title, journal, volume, issue, pages, first_page, book_title, publisher, References)
+  select(citing_id, id_ref, authors, year, title, journal, volume, issue, pages, first_page, book_title, publisher, references)
 
 # merging the two files.
 cleaned_ref <- rbind(cleaned_articles, cleaned_non_articles)
@@ -182,8 +193,9 @@ cleaned_ref <- cleaned_ref %>%
   mutate(authors = str_remove(authors, " Jr\\."), # standardising authors name to favour matching later
          authors = str_remove(authors, "^\\(\\d{4}\\)(\\.)?( )?"),
          authors = str_remove(authors, "^, "),
-         authors = ifelse(is.na(authors), str_extract(References, ".*[:upper:]\\.(?= \\d{4})"), authors), # specific case
-         doi = str_extract(References, "(?<=DOI(:)? ).*|(?<=\\/doi\\.org\\/).*"),
+         authors = ifelse(is.na(authors), str_extract(references, ".*[:upper:]\\.(?= \\d{4})"), authors), # specific case
+         journal = str_remove(journal, "[:punct:]$"), # remove unnecessary punctuations at the end
+         doi = str_extract(references, "(?<=DOI(:)? ).*|(?<=\\/doi\\.org\\/).*"),
          pii = str_extract(doi, "(?<=PII ).*"),
          doi = str_remove(doi, ",.*"), # cleaning doi
          pii = str_remove(pii, ",.*"), # cleaning pii
@@ -241,7 +253,7 @@ identifying_ref <- cleaned_ref %>%
 identifying_ref <- identifying_ref %>%  
   mutate(new_id_ref = select(., ends_with("new_id")) %>%  reduce(pmin, na.rm = TRUE),
          new_id_ref = ifelse(is.na(new_id_ref), id_ref, new_id_ref))  %>% 
-  relocate(new_id_ref, .after = Citing_ID) %>% 
+  relocate(new_id_ref, .after = citing_id) %>% 
   select(-id_ref & ! ends_with("new_id")) 
 
 #' ## Creating the different tables of data
@@ -250,7 +262,7 @@ identifying_ref <- identifying_ref %>%
 #' connectiong the citing articles to the references. We have as many lines as the number
 #' of citations by citing articles.
 direct_citation <- identifying_ref %>% 
-  relocate(new_id_ref, .after = Citing_ID) %>% 
+  relocate(new_id_ref, .after = citing_id) %>% 
   select(-id_ref & ! ends_with("new_id")) 
 
 #' We can extract the list of all the references cited. We have as many lines as references
@@ -273,7 +285,7 @@ references <- direct_citation %>%
 
 #' We can save all the cleaned data
 nodes <- scopus_search %>% 
-select(-References)
+select(-references)
 saveRDS(nodes, here(scopus_path,
                     "data_cleaned",
                     "scopus_manual_nodes.rds"))
@@ -300,7 +312,7 @@ write_excel_csv2(references, here(scopus_path,
 direct_citation <- direct_citation %>% 
   mutate(new_id_ref = as.character(new_id_ref))
 edges <- biblionetwork::coupling_strength(direct_citation, 
-                                          "Citing_ID", 
+                                          "citing_id", 
                                           "new_id_ref",
                                           weight_threshold = 3)
 saveRDS(edges, here(scopus_path,
@@ -325,7 +337,7 @@ write_excel_csv2(select(edges, Source, Target, weight), here(scopus_path,
 #' One that done, you need to save all the references (with one references
 #' per line) in a  `.txt`. 
 
-ref_text <- paste0(references_extract$References, collapse = "\\\n")
+ref_text <- paste0(references_extract$references, collapse = "\\\n")
 name_file <- "ref_in_text.txt"
 write_file(ref_text,
            here(scopus_path,
@@ -402,10 +414,10 @@ dsge_data_raw <- gen_entries_to_df(dsge_query$entries)
 dsge_papers <- dsge_data_raw$df %>% 
   as_tibble()
 
-dsge_affiliations <- data$affiliation %>% 
+dsge_affiliations <- dsge_data_raw$affiliation %>% 
   as_tibble()
 
-dsge_authors <- data$author %>% 
+dsge_authors <- dsge_data_raw$author %>% 
   as_tibble()
 
 #' Now that we have the articles, we have to extract the references using scopus
@@ -414,17 +426,10 @@ dsge_authors <- data$author %>%
 #' with several identifiers, so we need to make loop to extract references one by one.
 
 citing_articles <- dsge_papers$`dc:identifier`
-citations_query <- abstract_retrieval(citing_articles[1],
-                                      identifier = "scopus_id",
-                                      view = "REF",
-                                      headers = insttoken)
-citations <- gen_entries_to_df(citations_query$content$`abstracts-retrieval-response`$references$reference)
-citation_list <- citations$df %>% 
-  as_tibble() %>% 
-  mutate(Citing_art = citing_articles[1])
+citation_list <- list()
 
-for(i in 2:length(resting_id)){
-  citations_query <- abstract_retrieval(resting_id[i],
+for(i in 1:length(citing_articles)){
+  citations_query <- abstract_retrieval(citing_articles[i],
                                         identifier = "scopus_id",
                                         view = "REF",
                                         headers = insttoken)
@@ -432,19 +437,16 @@ for(i in 2:length(resting_id)){
   
   message(i)
   if(length(citations$df) > 0){
-    message(paste0(resting_id[i], " n'est pas nul."))
+    message(paste0(citing_articles[i], " n'est pas nul."))
     citations <- citations$df %>% 
       as_tibble(.name_repair = "unique") %>%
-      mutate(Citing_art = resting_id[i]) %>% 
       select_if(~!all(is.na(.)))
     
-    citation_list <- bind_rows(citation_list, citations)
+    citation_list[[citing_articles[i]]] <- citations
   }
 }
 
-done_id <- citation_list$Citing_art %>% unique
-resting_id <- setdiff(citing_articles, done_id)
-dsge_references <- citation_list
+dsge_references <- bind_rows(citation_list, .id = "citing_art")
 saveRDS(dsge_references, here(scopus_path,
                               "scopus_dsge_references.rds"))
 
