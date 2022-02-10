@@ -1,0 +1,120 @@
+<records>
+<rec resultID="1">
+  <header shortDbName="eoh" longDbName="EconLit with Full Text" uiTerm="0057408">
+    <controlInfo>
+      <bkinfo />
+      <revinfo />
+      <dissinfo />
+      <jinfo>
+        <jtl>Journal of Political Economy</jtl>
+        <jtl>Journal of Political Economy</jtl>
+        <issn type="print">00223808</issn>
+      </jinfo>
+      <pubinfo>
+        <dt year="1970" month="03" day="01">19700301</dt>
+        <vid>78</vid>
+        <iid>2</iid>
+      </pubinfo>
+      <artinfo>
+        <ppct>15</ppct>
+        <pages>338-352</pages>
+        <formats>
+          <fmt type="PDF" />
+        </formats>
+        <tig>
+          <atl>Rational Expectations and the Cobweb Theory</atl>
+        </tig>
+        <aug>
+          <au>Pashigian, B. Peter</au>
+        </aug>
+        <su>Microeconomics--Theory of Firm and Industry under Competitive Market Structures</su>
+        <su>Economic Fluctuations--General</su>
+        <pubtype>Journal Article</pubtype>
+      </artinfo>
+      <language code="eng">English</language>
+    </controlInfo>
+    <displayInfo>
+      <pLink>
+        <url>https://search.ebscohost.com/login.aspx?direct=true&amp;db=eoh&amp;AN=0057408&amp;site=ehost-live&amp;scope=site</url>
+      </pLink>
+    </displayInfo>
+  </header>
+</rec>
+<rec resultID="2">
+  <header shortDbName="eoh" longDbName="EconLit with Full Text" uiTerm="1220318">
+    <controlInfo>
+      <bkinfo />
+      <revinfo />
+      <dissinfo />
+      <jinfo>
+        <jtl>Econometrica</jtl>
+        <jtl>Econometrica</jtl>
+        <issn type="print">00129682</issn>
+      </jinfo>
+      <pubinfo>
+        <dt year="1966" month="04" day="01">19660401</dt>
+        <vid>34</vid>
+      </pubinfo>
+      <artinfo>
+        <ppct>7</ppct>
+        <pages>347-353</pages>
+        <tig>
+          <atl>Statistical vs. structural explanations of understatement and regressivity in 'rational' expectations</atl>
+        </tig>
+        <aug>
+          <au>Bossons, J.</au>
+          <au>Modigliani, F.</au>
+          <affil>Unlisted</affil>
+          <affil>Unlisted</affil>
+        </aug>
+        <su>Identification and Estimation of Parameters. Tests of Hypotheses. Prediction: General</su>
+        <su>Fluctuations. Forecasting: Forecasts</su>
+        <pubtype>Journal Article</pubtype>
+      </artinfo>
+      <language code="eng">English</language>
+    </controlInfo>
+    <displayInfo>
+      <pLink>
+        <url>https://search.ebscohost.com/login.aspx?direct=true&amp;db=eoh&amp;AN=1220318&amp;site=ehost-live&amp;scope=site</url>
+      </pLink>
+    </displayInfo>
+  </header>
+</rec>
+<rec resultID="3">
+  <header shortDbName="eoh" longDbName="EconLit with Full Text" uiTerm="1210535">
+    <controlInfo>
+      <bkinfo />
+      <revinfo />
+      <dissinfo />
+      <jinfo>
+        <jtl>Econometrica</jtl>
+        <jtl>Econometrica</jtl>
+        <issn type="print">00129682</issn>
+      </jinfo>
+      <pubinfo>
+        <dt year="1961" month="07" day="01">19610701</dt>
+        <vid>29</vid>
+      </pubinfo>
+      <artinfo>
+        <ppct>21</ppct>
+        <pages>315-335</pages>
+        <tig>
+          <atl>Rational expectations and the theory of price movements</atl>
+        </tig>
+        <aug>
+          <au>Muth, J. F.</au>
+          <affil>Unlisted</affil>
+        </aug>
+        <su>Uncertainty and Expectations. Decision Making under Uncertainty</su>
+        <su>Market Equilibrium: General</su>
+        <pubtype>Journal Article</pubtype>
+      </artinfo>
+      <language code="eng">English</language>
+    </controlInfo>
+    <displayInfo>
+      <pLink>
+        <url>https://search.ebscohost.com/login.aspx?direct=true&amp;db=eoh&amp;AN=1210535&amp;site=ehost-live&amp;scope=site</url>
+      </pLink>
+    </displayInfo>
+  </header>
+</rec></records>
