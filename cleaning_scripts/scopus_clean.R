@@ -250,6 +250,10 @@ identifying_ref <- cleaned_ref %>%
   matching_ref(id_ref, pii, col_name = "pii") %>% 
   matching_ref(id_ref, doi, col_name = "doi") 
 
+#' Now we have matched the references, we can reorganise the table of direct citation
+#' connectiong the citing articles to the references. We have as many lines as the number
+#' of citations by citing articles.
+
 identifying_ref <- identifying_ref %>%  
   mutate(new_id_ref = select(., ends_with("new_id")) %>%  reduce(pmin, na.rm = TRUE),
          new_id_ref = ifelse(is.na(new_id_ref), id_ref, new_id_ref))  %>% 
@@ -258,12 +262,8 @@ identifying_ref <- identifying_ref %>%
 
 #' ## Creating the different tables of data
 #' 
-#' Now we have matched the references, we can reorganise the table of direct citation
-#' connectiong the citing articles to the references. We have as many lines as the number
-#' of citations by citing articles.
-direct_citation <- identifying_ref %>% 
-  relocate(new_id_ref, .after = citing_id) %>% 
-  select(-id_ref & ! ends_with("new_id")) 
+
+direct_citation <- identifying_ref
 
 #' We can extract the list of all the references cited. We have as many lines as references
 #' cited by citing articles (i.e. a reference cited multiple times is only once in the table).
