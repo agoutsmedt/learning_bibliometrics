@@ -45,7 +45,6 @@ remDr <- rsDriver(browser = "firefox",
                   port = 4444L,
                   chromever = NULL)
 browser <- remDr[["client"]]
-browser$open()
 browser$maxWindowSize()
 
 all_data <- list()
