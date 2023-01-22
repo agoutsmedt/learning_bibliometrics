@@ -15,55 +15,57 @@ browser$maxWindowSize()
 browser$navigate(google_url)
 browser$
   findElement("id", "W0wltc")$
-  clickElement()
+  clickElement() # Clicking to reject cookies on first opening of Google
 
 prosopo_url <- list()
 names <- prosopo_data$Name
+extracting_google_info <- function(){ # function to extract urls, and corresponding text of google search
+  search_html <- browser$getPageSource()[[1]] %>% 
+    read_html()
+  
+  urls <- search_html %>% 
+    html_elements("div.yuRUbf") %>% 
+    html_elements("a") %>% 
+    html_attr("href") %>% 
+    .[-str_which(., "translate.google")]
+  
+  texts <- search_html %>% 
+    html_elements("div.VwiC3b.yXK7lf.MUxGbd.yDYNvb.lyLwlc") %>% 
+    html_text()
+  
+  data <- tibble(name = i, 
+                 "url" = urls,
+                 "text" = texts) 
+  return(data)
+}
 
-for(i in names){
+for(i in names[1:2]){
   google_search <- browser$
     findElement("name", "q")
-  
+
+# We split the name in separated character to type it slowly after that  
 name <- i %>% 
   str_split("") %>% 
   .[[1]]
 
-for(j in name){
+for(j in name){ # typing the name
 google_search$sendKeysToElement(list(j))
 Sys.sleep(runif(1))
 }
 google_search$sendKeysToElement(list(key = "enter"))
 Sys.sleep(1.5)
 
-search_html <- browser$getPageSource()[[1]] %>% 
-  read_html()
 
-urls <- search_html %>% 
-  html_elements("div.yuRUbf") %>% 
-  html_elements("a") %>% 
-  html_attr("href") 
-
-urls <- tibble(name = i, "url" = urls) %>% 
-  filter(!str_detect(url, "translate.google.com"))
+data_1 <- extracting_google_info()
 
 # go to the second page
 browser$
   findElement("link text", "2")$
   clickElement()
 Sys.sleep(1.3)
+data_2 <- extracting_google_info()
 
-search_html <- browser$getPageSource()[[1]] %>% 
-  read_html()
-
-urls_2 <- search_html %>% 
-  html_elements("div.yuRUbf") %>% 
-  html_elements("a") %>% 
-  html_attr("href")
-
-urls_2 <- tibble(name = i,  "url" = urls_2) %>% 
-  filter(! str_detect(url, "translate.google.com"))
-
-prosopo_url[[i]] <- bind_rows(urls, urls_2)
+prosopo_url[[i]] <- bind_rows(data_1, data_2)
 browser$navigate(google_url)
 }
 
