@@ -16,6 +16,7 @@ for(package in package_list){
 ################# Paths ####################             
 data_path <- here(path.expand("~"),
                   "data",
+                  "central_banks",
                   "scrap_bis")
 
 bis_path <- "https://www.bis.org/"
@@ -26,13 +27,13 @@ cbspeeches_path <- paste0(bis_path,
 
 # Loading the list of speeches we already have
 current_speeches_metadata <- readRDS(here(data_path, 
-                                          "speeches_metadata_cleaned.rds")) %>%
-  mutate(date = lubridate::dmy(date))
+                                          "speeches_metadata_cleaned_updated.rds")) # %>%
+#  mutate(date = lubridate::dmy(date))
 last_date <- current_speeches_metadata$date %>% 
   max()
 
 # We check manually what is the page of the last speeches we scrapped
-nb_pages <- 41
+nb_pages <- 25
 
 new_data <- tribble(~date, ~title, ~description, ~speaker, ~url)
 
@@ -40,9 +41,10 @@ new_data <- tribble(~date, ~title, ~description, ~speaker, ~url)
 columns <- c("date", "title", "description", "speaker")
 
 # Loop which depends on the pages we want to scrapp on "https://www.bis.org/doclist/cbspeeches.htm"
-for(j in 1:nb_pages){
+for(j in 6:nb_pages){
   html <- read_html(paste0(cbspeeches_path,
                            glue("?page={j}")))
+  Sys.sleep(0.5)
   
   for(i in 1:10){ # the default value is 10 items per page
     values <- html %>% 
@@ -75,15 +77,16 @@ for(j in 1:nb_pages){
 
 #' We use a function that make different operations to clean the data, notably the speakers,
 #' to generate the link of the pdf, the identifier of the speech, etc...
-source(here("scrapping_scripts",
-            "function_scrapping_bis.R"))
+source(here("scraping_scripts",
+            "function_scraping_bis.R"))
 data_cleaned <- cleaning_bis_metadata(new_data)
 
 #' We now merge with already existing corpus and remove the doublons
 #' 
 updated_data <- current_speeches_metadata %>% 
   bind_rows(data_cleaned) %>% 
-  distinct(file_name, .keep_all = TRUE)
+  distinct(file_name, .keep_all = TRUE) %>% 
+  arrange(desc(date))
 
 saveRDS(updated_data, here(data_path,
                            glue("speeches_metadata_cleaned_updated.rds")))
@@ -94,13 +97,13 @@ reduced_data <- data_cleaned %>%
   filter(! file_name %in% current_speeches_metadata$file_name)
 
 walk(reduced_data$file_name[1:nrow(reduced_data)], ~download.file(url = glue("https://www.bis.org/review/{.}.pdf"),
-                                                        destfile = glue("~/data/scrap_bis/pdf/{.}.pdf"),
+                                                        destfile = glue("~/data/central_banks/scrap_bis/pdf/{.}.pdf"),
                                                         method = "wininet",
                                                         mode = "wb"))
-download.file(url = "https://www.bis.org/review/r220513a.pdf",
-              destfile = "~/data/scrap_bis/pdf/r220513a.pdf",
-              method = "wininet",
-              mode = "wb")
+#download.file(url = "https://www.bis.org/review/r220513a.pdf",
+ #             destfile = "~/data/central_banks/scrap_bis/pdf/r220513a.pdf",
+  #            method = "wininet",
+   #           mode = "wb")
 
 ####################### Extracting texts ##############################
 pdf_files <- paste0(reduced_data$file_name, ".pdf")
@@ -127,7 +130,7 @@ new_text <- map(pdf_files, ~extracting_text(.)) %>%
   bind_rows()
 
 former_text <- readRDS(here(data_path,
-             glue("speeches_text.rds")))
+             glue("speeches_text_updated.rds")))
 
 updated_text <- former_text %>% 
   bind_rows(new_text)
