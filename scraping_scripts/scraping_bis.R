@@ -1,19 +1,4 @@
-############## Loading packages ####################
-
-package_list <- c("tidyverse",
-                  "rvest",
-                  "glue",
-                  "here",
-                  "pdftools")
-
-for(package in package_list){
-  if(package %in% installed.packages() == FALSE){
-    install.packages(package, dependencies = TRUE)
-  }
-  library(package, character.only = TRUE)
-}
-
-################# Paths ####################             
+################ Paths ####################             
 data_path <- here(path.expand("~"),
                   "data",
                   "scrap_bis")
@@ -32,7 +17,7 @@ nb_pages <- read_html(cbspeeches_path) %>%
   as.integer()
 
 # We load the data we have already saved
-file <- list.files(data_path) %>% 
+file <- list.files(bis_path) %>% 
   as_tibble() %>% 
   filter(str_detect(value, "rds"))
 
