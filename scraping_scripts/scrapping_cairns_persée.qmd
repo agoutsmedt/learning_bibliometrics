@@ -1,0 +1,151 @@
+---
+title: "Extracing metadata from persée and cairns"
+author: "Thomas Delcey"
+format: html
+editor: visual
+---
+
+```{r}
+knitr::opts_chunk$set(eval=FALSE)
+```
+
+## Cairns and Persee
+
+Persée and cairn are digitital library, mostly of french journals in humanities and social sciences. Both Persée and cairn allow the harvesting of the metadata of their materials through their OAI-PMH services.
+
+## OAI
+
+OAI-PMH stands for the Open Archives Initiative Protocol for Metadata Harvesting. The protocol requires that providers (cairn or persée for instance) offer an open access repository from which metadata can be harvested.
+
+The AOI-PMH protocol allows harvesters to query the repository by creating a specific URL made up of (1) the base url of the repository, (2) a complement to this url that specify the query following the AOI protocol. This system is simple and easy to master. You can find out exactly how it works on the [Wikipedia page](https://fr.wikipedia.org/wiki/Open_Archives_Initiative_Protocol_for_Metadata_Harvesting). Most repositories explain how url queries work (see the [persee repository page](https://www.persee.fr/entrepot-oai), for instance).
+
+The output of the url is a simple page containing the query formatted in xml and that is following a metadata standard. In the OAI of Persee, metadata can be structured in various standard such as the [oai_dc standard](https://www.openarchives.org/OAI/2.0/oai_dc.xsd), and many others (see the list [here](http://oai.persee.fr/oai?verb=ListMetadataFormats&identifier=oai:persee:serie/dha)).
+
+## A scrapper of CAIRN OAI
+
+Let's say you are interested in collecting all the documents published by the _Revue Economique_. 
+
+At this stage, to retrieve the metadata of your corpus, you need to follow these three steps:
+
+-   First, you need to make the query, namely write the url, which requires an understanding of how the OAI system works.
+-   Next, you need to open the URL online and understand how the xml structure works.
+-   Finally, once you have identified the data of interest, you need to extract it using our scrapper to correctly identifying the associated tags. It only requires basic knowledge of the xml format and to master the `xml2` package.^[Note that for some AOI, such as the Persee AOI, the output of the query is an html page. The harvesting remains very similar, even simpler than with an xml page. You will need to use the `rvest` package, which is based anyway on the `xm2` package.]
+
+### Extract the id of a journal and its issues
+
+The entire list of journals available on cairn is available [here](https://oai.cairn.info/oai.php?verb=ListSets).[^1] A research allows us to find the "revue economique" and its id "RECO".^[This is the list of the "sets", namely sets of records contained in the repository. The entire article published by the Revue Economique is one set of the repository.]
+
+From here, we can now collect the id of each issues published by the revue economique by scrapping data from this [page](https://oai.cairn.info/oai.php?verb=ListIdentifiers&metadataPrefix=mets&set=RECO).
+
+```{r}
+#| warning: FALSE 
+
+
+library(dplyr)
+library(xml2)
+library(stringr)
+
+url <- "https://oai.cairn.info/oai.php?verb=ListIdentifiers&metadataPrefix=mets&set=RECO"
+
+xml_data <- 
+  read_xml(url) %>% 
+  xml_ns_strip()
+
+# Extract the 'identifier' elements using the XPath to the tag
+id_issues <- xml_find_all(xml_data, ".//identifier") %>%
+  xml_text %>% 
+  str_remove_all(., "oai\\:cairn\\.info\\:")
+
+# another method that do not require xml_ns_strip()
+# id_issues <- xml_find_all(xml_data, "//*[local-name()='identifier']")
+
+
+
+```
+
+## Extract the id of all documents
+
+From here, we can now collect the id of each article published in each issue of the revue economique by scrapping data from this [page](https://oai.cairn.info/oai.php?verb=ListIdentifiers&metadataPrefix=mets&set=RECO).
+
+```{r}
+base_url <- "https://oai.cairn.info/oai.php?verb=GetRecord&metadataPrefix=mets&identifier=oai:cairn.info:"
+
+tibble_id_doc <- tibble()
+for (id in id_issues) {
+
+url <- paste0(base_url, id)
+
+id_doc <- read_xml(url) %>% 
+  xml_ns_strip() %>%
+  xml_find_all(".//mets:div") %>%
+  xml_attr("ID") %>% .[-1]
+
+data <- tibble(id_issues = id, 
+       id_doc = id_doc)
+
+tibble_id_doc <- bind_rows(tibble_id_doc, data)
+}
+```
+
+## Extract metadata for each document
+
+Now we have a list of 900 id_doc. For each id, we can build a query url and harvest the metadata we are interested in. For instance, for the first id of the list, I can build an url, explore the xml document online, and then build my scrapper to retrieve the title of the document. Here, I write a url to retrieve the metadata of the first document, I then extract the title of this document. 
+
+```{r}
+id_doc <- tibble_id_doc %>% pull(id_doc)
+
+
+base_url <- "https://oai.cairn.info/oai.php?verb=GetRecord&metadataPrefix=oai_dc&identifier="
+url <- paste0(base_url, id_doc[[1]])
+
+read_xml(url) %>% xml_find_all(".//dc:title") %>% xml_text
+```
+
+Of course, we can do the same for all metadata by using the two functions `xml_find_first` and `xml_text` to access different nodes (such as authors, abstracts, etc.). I aim to organize the collected data into a structured tibble, where each type of data collected constitutes a column. If the metadata is unique by observation (i.e. the title), the value is a character strings. If the metadata can take more than one value, I create a list of strings. The output will be a tibble with one row for the document and various columns for the document's metadata.
+
+To process all documents, I can employ a loop, using `bind_rows` to combine the output from each iteration (which is a tibble with one row) to compile my final corpus.^[To prevent the loop from being stopped, I am using the tryCatch function.]
+
+```{r}
+extract_nodes_text <- function(xml, node) {
+  tag <- paste0(".//dc:", node)
+  text <- xml %>%
+    xml_find_all(tag) %>%
+    xml_text()
+  return(text)
+}
+
+tibble <- tibble()
+list_errors <- list()
+
+for (id in id_doc) {
+  tryCatch({
+    print(id)
+    url <-
+      paste0(
+        "https://oai.cairn.info/oai.php?verb=GetRecord&metadataPrefix=oai_dc&identifier=",
+        id
+      )
+    
+    xml <- read_xml(url)
+
+    row <- tibble(
+      id = id,
+      url = extract_nodes_text(xml, "identifier"),
+      title = extract_nodes_text(xml, "title"),
+      abstract = extract_nodes_text(xml, "description") %>% list(),
+      authors = extract_nodes_text(xml, "creator") %>% list(),
+      date = extract_nodes_text(xml, "date"),
+      language = extract_nodes_text(xml, "language"),
+      source = extract_nodes_text(xml, "source")
+    )
+    
+    tibble <- bind_rows(tibble, row)
+    
+  },
+  error = function(e) {
+    message(paste("Erreur pour l'ID :", id, "- Message d'erreur :", e$message))
+  })
+  
+}
+
+```
